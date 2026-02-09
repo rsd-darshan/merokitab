@@ -44,7 +44,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('Login error:', error)
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: 'Invalid input', details: error.errors }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid input', details: error.issues }, { status: 400 })
     }
     if (error instanceof Error) {
       return NextResponse.json({ error: error.message || 'Failed to login' }, { status: 500 })

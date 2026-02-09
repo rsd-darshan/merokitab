@@ -89,7 +89,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ book })
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: 'Invalid input', details: error.errors }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid input', details: error.issues }, { status: 400 })
     }
     return NextResponse.json({ error: 'Failed to create book' }, { status: 500 })
   }
