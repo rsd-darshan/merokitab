@@ -1,0 +1,4 @@
+# Vercel ignore file - ensure fresh builds
+node_modules
+.next
+.vercel
