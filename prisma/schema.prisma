@@ -1,0 +1,136 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum BookCondition {
+  NEW
+  LIKE_NEW
+  GOOD
+  FAIR
+}
+
+enum BookStatus {
+  AVAILABLE
+  SOLD
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAYMENT_VERIFICATION_PENDING
+  PAYMENT_CONFIRMED
+  COMPLETED
+  CANCELLED
+  PAYOUT_SENT
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  phone        String
+  passwordHash String
+  isAdmin      Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  books      Book[]  @relation("SellerBooks")
+  buyOrders  Order[] @relation("BuyerOrders")
+  soldOrders Order[] @relation("SellerOrders")
+
+  chatThreadsAsBuyer  ChatThread[]  @relation("ChatBuyer")
+  chatThreadsAsSeller ChatThread[]  @relation("ChatSeller")
+  chatMessages        ChatMessage[]
+}
+
+model Book {
+  id            String        @id @default(cuid())
+  title         String
+  author        String
+  condition     BookCondition
+  description   String
+  sellerPrice   Int
+  platformPrice Int
+  imageUrl      String?
+  status        BookStatus    @default(AVAILABLE)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  sellerId String
+  seller   User   @relation("SellerBooks", fields: [sellerId], references: [id], onDelete: Cascade)
+
+  order Order?
+
+  @@index([title])
+  @@index([author])
+  @@index([status])
+  @@index([sellerId])
+}
+
+model Order {
+  id            String      @id @default(cuid())
+  status        OrderStatus @default(PENDING_PAYMENT)
+  sellerPrice   Int
+  platformPrice Int
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  buyerId String
+  buyer   User   @relation("BuyerOrders", fields: [buyerId], references: [id], onDelete: Restrict)
+
+  sellerId String
+  seller   User   @relation("SellerOrders", fields: [sellerId], references: [id], onDelete: Restrict)
+
+  bookId String @unique
+  book   Book   @relation(fields: [bookId], references: [id], onDelete: Restrict)
+
+  paymentMarkedAt    DateTime?
+  paymentConfirmedAt DateTime?
+  payoutSentAt       DateTime?
+
+  chatThread ChatThread?
+
+  @@index([status])
+  @@index([buyerId])
+  @@index([sellerId])
+}
+
+model ChatThread {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orderId String @unique
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  buyerId String
+  buyer   User   @relation("ChatBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
+
+  sellerId String
+  seller   User   @relation("ChatSeller", fields: [sellerId], references: [id], onDelete: Cascade)
+
+  messages ChatMessage[]
+
+  @@index([buyerId])
+  @@index([sellerId])
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  threadId String
+  thread   ChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  senderId String
+  sender   User   @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  content String
+
+  @@index([threadId, createdAt])
+  @@index([senderId])
+}

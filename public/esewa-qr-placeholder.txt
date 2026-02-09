@@ -1,0 +1,19 @@
+PLACEHOLDER FOR ESEWA QR CODE
+
+Instructions:
+1. Generate your eSewa QR code from your eSewa merchant account
+2. Save it as an image file (PNG or JPG)
+3. Place it in the public folder as: public/esewa-qr.png
+4. Update src/app/orders/[id]/payment/page.tsx to use the actual image
+
+The payment page currently shows a placeholder. Replace the placeholder div with:
+
+<Image
+  src="/esewa-qr.png"
+  alt="eSewa QR Code"
+  width={256}
+  height={256}
+  className="mx-auto"
+/>
+
+Make sure to import Image from 'next/image' at the top of the file.
