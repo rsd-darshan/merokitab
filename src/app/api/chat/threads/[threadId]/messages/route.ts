@@ -22,16 +22,16 @@ async function requireThreadAccess(threadId: string, userId: string, isAdmin: bo
     },
   })
 
-  if (!thread) return { error: NextResponse.json({ error: 'Not found' }, { status: 404 }) as const }
+  if (!thread) return { error: NextResponse.json({ error: 'Not found' }, { status: 404 }) }
 
   const allowed = thread.buyerId === userId || thread.sellerId === userId || isAdmin
-  if (!allowed) return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) as const }
+  if (!allowed) return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
 
   if (!chatAllowedStatus(thread.order.status)) {
-    return { error: NextResponse.json({ error: 'Chat is available after payment is confirmed' }, { status: 403 }) as const }
+    return { error: NextResponse.json({ error: 'Chat is available after payment is confirmed' }, { status: 403 }) }
   }
 
-  return { thread } as const
+  return { thread }
 }
 
 export async function GET(
@@ -73,7 +73,7 @@ export async function POST(
     parsed = sendSchema.parse(await request.json())
   } catch (e) {
     if (e instanceof z.ZodError) {
-      return NextResponse.json({ error: 'Invalid input', details: e.errors }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid input', details: e.issues }, { status: 400 })
     }
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
   }
