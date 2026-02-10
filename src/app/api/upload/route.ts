@@ -3,6 +3,21 @@ import { getSession } from '@/lib/auth'
 import { writeFile } from 'fs/promises'
 import { join } from 'path'
 import { existsSync, mkdirSync } from 'fs'
+import { v2 as cloudinary } from 'cloudinary'
+
+// Configure Cloudinary once per lambda
+const hasCloudinaryConfig =
+  !!process.env.CLOUDINARY_CLOUD_NAME &&
+  !!process.env.CLOUDINARY_API_KEY &&
+  !!process.env.CLOUDINARY_API_SECRET
+
+if (hasCloudinaryConfig) {
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+  })
+}
 
 export async function POST(request: Request) {
   try {
@@ -39,28 +54,62 @@ export async function POST(request: Request) {
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
 
-    // Generate unique filename
+    // If Cloudinary is configured, always use it (works locally + on Vercel)
+    if (hasCloudinaryConfig) {
+      const uploadResult = await new Promise<{ secure_url: string }>((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          {
+            folder: 'merokitab-books',
+            resource_type: 'image',
+          },
+          (error, result) => {
+            if (error || !result) return reject(error)
+            resolve(result as any)
+          }
+        )
+
+        stream.end(buffer)
+      })
+
+      return NextResponse.json({ success: true, imageUrl: uploadResult.secure_url })
+    }
+
+    // If running on Vercel without Cloudinary configured, fail fast with a clear message.
+    if (process.env.VERCEL === '1') {
+      return NextResponse.json(
+        {
+          error:
+            'Image upload is not configured. Please set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET in Vercel environment variables.',
+        },
+        { status: 500 }
+      )
+    }
+
+    // Fallback: local disk (only for local dev)
     const timestamp = Date.now()
     const randomStr = Math.random().toString(36).substring(2, 15)
     const extension = file.name.split('.').pop() || 'jpg'
     const filename = `${timestamp}-${randomStr}.${extension}`
 
-    // Ensure uploads directory exists
     const uploadsDir = join(process.cwd(), 'public', 'uploads')
     if (!existsSync(uploadsDir)) {
       mkdirSync(uploadsDir, { recursive: true })
     }
 
-    // Save file
     const filepath = join(uploadsDir, filename)
     await writeFile(filepath, buffer)
 
-    // Return the public URL
     const imageUrl = `/uploads/${filename}`
 
     return NextResponse.json({ success: true, imageUrl })
   } catch (error) {
     console.error('Upload error:', error)
-    return NextResponse.json({ error: 'Failed to upload image' }, { status: 500 })
+    const message =
+      error instanceof Error
+        ? error.message
+        : typeof error === 'string'
+        ? error
+        : 'Failed to upload image'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }
