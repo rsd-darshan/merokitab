@@ -46,8 +46,9 @@ export default function SignupPage() {
         return
       }
 
-      router.push('/')
-      router.refresh()
+      // Use full reload so that navbar and all server components
+      // immediately see the new session without needing a manual refresh.
+      window.location.href = '/'
     } catch (err) {
       console.error('Signup error:', err)
       setError('Something went wrong. Please try again.')
