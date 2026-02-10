@@ -3,21 +3,12 @@ import { getSession } from '@/lib/auth'
 import { writeFile } from 'fs/promises'
 import { join } from 'path'
 import { existsSync, mkdirSync } from 'fs'
-import { v2 as cloudinary } from 'cloudinary'
+import crypto from 'crypto'
 
-// Configure Cloudinary once per lambda
 const hasCloudinaryConfig =
   !!process.env.CLOUDINARY_CLOUD_NAME &&
   !!process.env.CLOUDINARY_API_KEY &&
   !!process.env.CLOUDINARY_API_SECRET
-
-if (hasCloudinaryConfig) {
-  cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET,
-  })
-}
 
 export async function POST(request: Request) {
   try {
@@ -56,22 +47,44 @@ export async function POST(request: Request) {
 
     // If Cloudinary is configured, always use it (works locally + on Vercel)
     if (hasCloudinaryConfig) {
-      const uploadResult = await new Promise<{ secure_url: string }>((resolve, reject) => {
-        const stream = cloudinary.uploader.upload_stream(
-          {
-            folder: 'merokitab-books',
-            resource_type: 'image',
-          },
-          (error, result) => {
-            if (error || !result) return reject(error)
-            resolve(result as any)
-          }
+      const cloudName = process.env.CLOUDINARY_CLOUD_NAME as string
+      const apiKey = process.env.CLOUDINARY_API_KEY as string
+      const apiSecret = process.env.CLOUDINARY_API_SECRET as string
+
+      const timestamp = Math.floor(Date.now() / 1000)
+      const folder = 'merokitab-books'
+
+      // Construct signature string according to Cloudinary docs:
+      // https://cloudinary.com/documentation/upload_images#generating_authentication_signatures
+      const toSign = `folder=${folder}&timestamp=${timestamp}${apiSecret}`
+      const signature = crypto.createHash('sha1').update(toSign).digest('hex')
+
+      const form = new FormData()
+      form.append('file', new Blob([buffer], { type: file.type }), file.name)
+      form.append('api_key', apiKey)
+      form.append('timestamp', String(timestamp))
+      form.append('signature', signature)
+      form.append('folder', folder)
+
+      const cloudinaryRes = await fetch(
+        `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+        {
+          method: 'POST',
+          body: form,
+        }
+      )
+
+      const cloudinaryData = (await cloudinaryRes.json()) as any
+
+      if (!cloudinaryRes.ok) {
+        console.error('Cloudinary upload error:', cloudinaryData)
+        return NextResponse.json(
+          { error: cloudinaryData.error?.message || 'Cloud upload failed' },
+          { status: 500 }
         )
+      }
 
-        stream.end(buffer)
-      })
-
-      return NextResponse.json({ success: true, imageUrl: uploadResult.secure_url })
+      return NextResponse.json({ success: true, imageUrl: cloudinaryData.secure_url })
     }
 
     // If running on Vercel without Cloudinary configured, fail fast with a clear message.
